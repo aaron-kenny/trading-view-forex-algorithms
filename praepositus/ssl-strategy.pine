@@ -1,0 +1,67 @@
+//@version=4
+// Rules:
+// 1. Above daily EMA
+// 2. Under hourly 50 EMA
+// 3. Confirmation candles if wanted
+strategy(title='SSL', overlay=true, default_qty_type=strategy.cash, default_qty_value=100000, currency='USD', linktoseries=true, commission_type=strategy.commission.cash_per_order, commission_value=27, pyramiding=2)
+
+// Inputs
+////////////////////////////////////////////////
+
+// SSL
+////////////////////////////////////////////////
+len = input(10, "SSL Period")   //Period of SMA
+sma_high = sma(high,len)        //SMA of HIGH with period "len"
+sma_low = sma(low,len)          //SMA of LOW with period "len"
+hlv = 0                         //Init the "High-Low Value"
+offset = input(1,"SSL Offset")  //Option to offset MA values back
+
+//if close is above MA of high, green line on top
+//if close is below MA of low, green line on bottom
+hlv := close > sma_high[1] ? 1 : close < sma_low[1] ? -1 : hlv[1]
+ssld = hlv == -1 ? sma_high[offset] : sma_low[offset]
+sslu = hlv == -1 ? sma_low[offset] : sma_high[offset]
+
+//Plotting
+plot(ssld,"Down",color.red,2)
+plot(sslu,"Up",color.green,2)
+
+// Conditions
+////////////////////////////////////////////////
+crossedUnderSSL = crossunder(ssld, sslu)
+crossedOverSSL = crossover(sslu, ssld)
+
+longCondition = crossedOverSSL
+shortCondition = crossedUnderSSL
+
+// Testing period
+////////////////////////////////////////////////
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2019, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+testStartPeriod = timestamp(startYear, startMonth, 1, 0, 0)
+testEndPeriod = timestamp(endYear, endMonth, 31, 0, 0)
+
+// Calculate ATR for stop loss and take profit
+////////////////////////////////////////////////
+
+// Entry
+////////////////////////////////////////////////
+if time >= testStartPeriod and time <= testEndPeriod and longCondition
+    strategy.entry('Enter Long 1', strategy.long)
+if time >= testStartPeriod and time <= testEndPeriod and shortCondition
+    strategy.entry('Enter Short 1', strategy.short)
+
+// Exit
+////////////////////////////////////////////////
+stopLossAtrMultiplier = input(title='Stop Loss ATR Multiplier', type=input.float, defval=1)
+takeProfitAtrMultiplier = input(title='Take Profit ATR Multiplier', type=input.float, defval=1)
+
+// strategy.exit('exit', 'long', trail_points=trailStopTrigger, trail_offset=trailStop)
+// strategy.exit('exit', 'short', trail_points=trailStopTrigger, trail_offset=trailStop)
+
+strategy.exit('Exit Long 1', 'Enter Long 1', profit=(atr(14) * takeProfitAtrMultiplier * 100000), loss=(atr(14) * stopLossAtrMultiplier * 100000))
+
+strategy.exit('Exit Short 1', 'Enter Short 1', profit=(atr(14) * takeProfitAtrMultiplier * 100000), loss=(atr(14) * stopLossAtrMultiplier * 100000))

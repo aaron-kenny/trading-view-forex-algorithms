@@ -1,0 +1,71 @@
+//@version=4
+// Rules:
+// 1. Above daily EMA
+// 2. Under hourly 50 EMA
+// 3. Confirmation candles if wanted
+strategy(title='so easy its ridiculous', overlay=true, default_qty_type=strategy.cash, default_qty_value=100000, currency='USD', linktoseries=true, commission_type=strategy.commission.cash_per_order, commission_value=27)
+
+// Inputs
+profitTarget = input(defval=5000, title='Profit Target Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='When to trigger trail stop loss in ticks', type=input.integer)
+trailStop = input(defval=200, title='Trailing Stop in Ticks', type=input.integer)
+
+fastSMALength = input(title='Fast SMA', defval=5, type=input.integer)
+slowSMALength = input(title='Slow SMA', defval=10, type=input.integer)
+
+// SMAs
+fastSMA = sma(close, fastSMALength)
+slowSMA = sma(close, slowSMALength)
+plot(fastSMA, color=color.white, linewidth=1)
+plot(slowSMA, color=color.blue, linewidth=1)
+
+// Stochastic
+periodK = input(14, title="Stochastic K", minval=1)
+periodD = input(3, title="Stochastic D", minval=1)
+smoothK = input(3, title="Stochastic Smooth", minval=1)
+k = sma(stoch(close, high, low, periodK), smoothK)
+d = sma(k, periodD)
+// plot(k, title="%K", color=color.blue)
+// plot(d, title="%D", color=color.orange)
+// h0 = hline(80)
+// h1 = hline(20)
+
+// RSI
+src = close
+len = input(14, minval=1, title="Length")
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+// plot(rsi, color=color.purple)
+// band1 = hline(70)
+// band0 = hline(30)
+
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2019, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+// Avoid high spreads
+// badTime = time(timeframe.period, '1400-2100')
+// bgcolor(badTime ? color.red : na, transp=95)
+
+// Conditions
+// goodTime = not badTime
+smaCrossedUp = crossover(fastSMA, slowSMA)
+smaCrossedDown = crossunder(fastSMA, slowSMA)
+stochUnderLine = k < 80 and d < 80
+stochAboveLine = k > 20 and d > 20
+rsiAboveLine = rsi > 50
+rsiUnderLine = rsi < 50
+
+longCondition = smaCrossedUp and stochUnderLine and rsiAboveLine
+shortCondition = smaCrossedDown and stochAboveLine and rsiUnderLine
+
+// Entry
+if time >= timestamp(startYear,startMonth,1,0,0) and time <= timestamp(endYear,endMonth,31,0,0)
+    strategy.entry('long', strategy.long, when=longCondition)
+    strategy.entry('short', strategy.short, when=shortCondition)
+
+// Exit
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
+strategy.exit('exit', 'short', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)

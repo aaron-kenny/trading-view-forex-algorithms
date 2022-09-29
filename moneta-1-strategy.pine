@@ -1,0 +1,28 @@
+//@version=4
+// Rules:
+// 1. 1H 50EMA break
+// 2. x confirmation candles under 1H 50EMA
+strategy(title='Kapax Moneta 1 Strategy', overlay=true, default_qty_type=strategy.cash, default_qty_value=20000, currency='USD', linktoseries=true)
+
+// Inputs
+profitTarget = input(defval=200, title='Profit Target in Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='Trailing Stop Loss Trigger in ticks', type=input.integer)
+trailStop = input(defval=100, title='Trailing Stop Loss in Ticks', type=input.integer)
+
+EMA = ema(close, 50)
+plot(EMA, title='50EMA', color=color.white)
+
+// Conditions
+longCondition = close > EMA and close[5] > EMA
+
+// Testing period
+testPeriodStart = timestamp(2018,5,1,0,0)
+testPeriodStop = timestamp(2019,5,30,0,0)
+
+// Entry
+if time >= testPeriodStart and time <= testPeriodStop
+    strategy.entry('long', strategy.long, when=longCondition)
+    // strategy.entry("Short", strategy.short, when=shortcondition)
+
+// Exit
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)

@@ -1,0 +1,74 @@
+//@version=4
+// Rules:
+// 1. Above daily EMA
+// 2. Under hourly 50 EMA
+// 3. Confirmation candles if wanted
+strategy(title='Squeeze Momentum Strategy', overlay=false, default_qty_type=strategy.cash, default_qty_value=10000, currency='USD', commission_type=strategy.commission.cash_per_order, commission_value=0)
+
+// Inputs
+profitTarget = input(defval=500, title='Profit Target Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='When to trigger trail stop loss in ticks', type=input.integer)
+trailStop = input(defval=100, title='Trailing Stop in Ticks', type=input.integer)
+
+// Squeeze Momentum Indicator
+length = input(20, title="BB Length")
+mult = input(2.0,title="BB MultFactor")
+lengthKC = input(20, title="KC Length")
+multKC = input(1.5, title="KC MultFactor")
+
+useTrueRange = input(true, title="Use TrueRange (KC)", type=input.bool)
+
+// Calculate BB
+source = close
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// Calculate KC
+ma = sma(source, lengthKC)
+range = useTrueRange ? tr : (high - low)
+rangema = sma(range, lengthKC)
+upperKC = ma + rangema * multKC
+lowerKC = ma - rangema * multKC
+
+sqzOn  = (lowerBB > lowerKC) and (upperBB < upperKC)
+sqzOff = (lowerBB < lowerKC) and (upperBB > upperKC)
+noSqz  = (sqzOn == false) and (sqzOff == false)
+
+val = linreg(source - avg(avg(highest(high, lengthKC), lowest(low, lengthKC)),sma(close,lengthKC)), lengthKC,0)
+
+bcolor = iff( val > 0, 
+  iff( val > nz(val[1]), color.lime, color.green),
+  iff( val < nz(val[1]), color.red, color.maroon))
+scolor = noSqz ? color.blue : sqzOn ? color.black : color.gray 
+plot(val, color=bcolor, style=plot.style_histogram, linewidth=4)
+plot(0, color=scolor, style=plot.style_cross, linewidth=2)
+
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2018, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+// Avoid high spreads
+badTime = time(timeframe.period, "1230-1930")
+bgcolor(badTime ? color.red : na, transp=95)
+
+// Conditions
+goodTime = not badTime
+squeezeReleaseUp = sqzOff and sqzOn[1] and val > 0
+squeezeReleaseDown = sqzOff and sqzOn[1] and val < 0
+
+longCondition = goodTime and squeezeReleaseUp
+shortCondition = goodTime and squeezeReleaseDown
+
+// Entry
+if time >= timestamp(startYear,startMonth,1,0,0) and time <= timestamp(endYear,endMonth,28,0,0)
+    strategy.entry('long', strategy.long, when=longCondition)
+    strategy.entry('short', strategy.short, when=shortCondition)
+
+// Exit
+strategy.close('long', when = not (val > nz(val[1])))
+strategy.close('short', when = not (val < nz(val[1])))
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
+strategy.exit('exit', 'short', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)

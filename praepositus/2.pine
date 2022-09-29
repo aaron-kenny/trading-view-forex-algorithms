@@ -1,0 +1,111 @@
+//@version=4
+// Rules:
+// 1. Above daily EMA
+// 2. Under hourly 50 EMA
+// 3. Confirmation candles if wanted
+strategy(title='1', overlay=true, default_qty_type=strategy.cash, default_qty_value=100000, currency='USD', linktoseries=true, commission_type=strategy.commission.cash_per_order, commission_value=27)
+
+// Inputs
+profitTarget = input(defval=5000, title='Profit Target Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='When to trigger trail stop loss in ticks', type=input.integer)
+trailStop = input(defval=200, title='Trailing Stop in Ticks', type=input.integer)
+
+// Triangular Moving Average
+length = input(title="TMA Length", type=input.integer, defval=20, minval=1)
+tmaSrc = input(title="TMA Source", type=input.source, defval=close)
+tma = sma(sma(tmaSrc, ceil(length / 2)), floor(length / 2) + 1)
+tmaColor = tma > tma[1] ? color.green : color.red
+plot(tma, title="TMA", linewidth=1, color=tmaColor, transp=0)
+
+// Schaff Trend Cycle
+fastLength = input(title="Schaff MACD Fast Length", type=input.integer, defval=23)
+slowLength = input(title="Schaff MACD Slow Length", type=input.integer, defval=50)
+cycleLength = input(title="Schaff Cycle Length", type=input.integer, defval=10)
+d1Length = input(title="Schaff 1st %D Length", type=input.integer, defval=3)
+d2Length = input(title="Schaff 2nd %D Length", type=input.integer, defval=3)
+schaffSource = input(title="Schaff Source", type=input.source, defval=close)
+macd = ema(schaffSource, fastLength) - ema(schaffSource, slowLength)
+k = nz(fixnan(stoch(macd, macd, macd, cycleLength)))
+d = ema(k, d1Length)
+kd = nz(fixnan(stoch(d, d, d, cycleLength)))
+stc = ema(kd, d2Length)
+stc := 	stc > 100 ? 100 : stc < 0 ? 0 : stc
+// stcColor = not highlightBreakouts ? (stc > stc[1] ? green : red) : #ff3013
+// stcPlot = plot(stc, title="STC", color=#ff3013, transp=0)
+upper = 75
+lower = 25
+// transparent = color.new(color.white, 100)
+// upperLevel = plot(upper, title="Upper", color=color.gray)
+// hline(50, title="Middle", linestyle=hline.style_dotted)
+// lowerLevel = plot(lower, title="Lower", color=color.gray)
+// fill(upperLevel, lowerLevel, color=#f9cb9c, transp=90)
+
+// fill(upperLevel, stcPlot, color=upperFillColor, transp=80)
+// fill(lowerLevel, stcPlot, color=lowerFillColor, transp=80)
+// plotshape(crossover(stc, lower) ? lower : na, title="Crossover", location=location.absolute, style=shape.circle, size=size.tiny, color=color.green, transp=0)
+// plotshape(crossunder(stc, upper) ? upper : na, title="Crossunder", location=location.absolute, style=shape.circle, size=size.tiny, color=color.red, transp=0)
+
+// Waddah Attar Explosion
+sensitivity = input(title="WAE Sensitivity", defval=150)
+waeFastLength = input(title="WAE FastEMA Length", defval=20)
+waeSlowLength = input(title="WAE SlowEMA Length", defval=40)
+channelLength = input(title="WAE BB Channel Length", defval=20)
+mult = input(title="WAE BB Stdev Multiplier", defval=2.0)
+deadZone = input(title="WAE No trade zone threshold", defval=20)
+
+calc_macd(source, waeFastLength, waeSlowLength) =>
+	fastMA = ema(source, waeFastLength)
+	slowMA = ema(source, waeSlowLength)
+	fastMA - slowMA
+
+calc_BBUpper(source, length, mult) => 
+	basis = sma(source, length)
+	dev = mult * stdev(source, length)
+	basis + dev
+
+calc_BBLower(source, length, mult) => 
+	basis = sma(source, length)
+	dev = mult * stdev(source, length)
+	basis - dev
+
+t1 = (calc_macd(close, waeFastLength, waeSlowLength) - calc_macd(close[1], waeFastLength, waeSlowLength))*sensitivity
+t2 = (calc_macd(close[2], waeFastLength, waeSlowLength) - calc_macd(close[3], waeFastLength, waeSlowLength))*sensitivity
+
+e1 = (calc_BBUpper(close, channelLength, mult) - calc_BBLower(close, channelLength, mult))
+
+trendUp = (t1 >= 0) ? t1 : 0
+trendDown = (t1 < 0) ? (-1*t1) : 0
+
+// plot(trendUp, style=columns, linewidth=1, color=(trendUp<trendUp[1])?lime:green, transp=45, title="UpTrend")
+// plot(trendDown, style=columns, linewidth=1, color=(trendDown<trendDown[1])?orange:red, transp=45, title="DownTrend")
+// plot(e1, style=line, linewidth=2, color=#A0522D, title="ExplosionLine")
+// hline(deadZone, color=blue, linewidth=2, title="DeadZoneLine")
+
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2019, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+// Avoid high spreads
+// badTime = time(timeframe.period, '1400-2100')
+// bgcolor(badTime ? color.red : na, transp=95)
+
+// Conditions
+// goodTime = not badTime
+crossedUnderTMA = crossunder(close, tma)
+crossedOverTMA = crossover(close, tma)
+crossedUnderSTC = crossunder(stc, upper)
+crossedOverSTC = crossover(stc, lower)
+volumeUp = trendUp > e1 or trendDown > e1
+
+longCondition = crossover(close, tma) and stc > lower and volumeUp
+shortCondition = crossunder(close, tma) and stc < upper and volumeUp
+
+// Entry
+if time >= timestamp(startYear,startMonth,1,0,0) and time <= timestamp(endYear,endMonth,31,0,0)
+    strategy.entry('long', strategy.long, when=longCondition)
+    strategy.entry('short', strategy.short, when=shortCondition)
+
+// Exit
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
+strategy.exit('exit', 'short', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)

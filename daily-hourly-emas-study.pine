@@ -1,0 +1,25 @@
+//@version=4
+// Rules:
+// Try Kijun-sen as baseline
+// 1. Over daily 50 EMA
+// 2. x confirmation candles under 1H 50EMA
+study(title='Daily Hourly EMAs Study', overlay=true, linktoseries=true)
+
+// Inputs
+hourlyCrossoverCandles = input(defval=0, title='Candles Since HourlyEMA Crossover', type=input.integer)
+dailyEMA = security(syminfo.tickerid, 'D', ema(close, input(defval=50, title='Daily EMA', type=input.integer)))
+hourlyEMA = ema(close, input(defval=50, title='Hourly EMA', type=input.integer))
+
+plot(hourlyEMA, title='Hourly EMA', color=color.white)
+plot(dailyEMA, title="Daily EMA", color=color.yellow)
+
+// Conditions
+isOverDailyEMA = close > dailyEMA
+isUnderDailyEMA = close < dailyEMA
+crossedOverHourlyEMA = crossover(close[hourlyCrossoverCandles], hourlyEMA[hourlyCrossoverCandles]) and close > hourlyEMA
+crossedUnderHourlyEMA = crossunder(close[hourlyCrossoverCandles], hourlyEMA[hourlyCrossoverCandles]) and close < hourlyEMA
+
+longCondition = isOverDailyEMA and crossedOverHourlyEMA
+shortCondition = isUnderDailyEMA and crossedUnderHourlyEMA
+
+alertcondition(longCondition, title='Custom Strategy Met', message='{"currency": {{ticker}}, "time": "then"}')

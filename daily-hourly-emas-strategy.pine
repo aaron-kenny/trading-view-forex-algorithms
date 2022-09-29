@@ -1,0 +1,45 @@
+//@version=4
+// Rules:
+// Try Kijun-sen as baseline
+// 1. Over daily 50 EMA
+// 2. x confirmation candles under 1H 50EMA
+strategy(title='Daily Crossover Strategy', overlay=true, default_qty_type=strategy.cash, default_qty_value=20000, currency='USD', linktoseries=true)
+
+// Inputs
+profitTarget = input(defval=200, title='Profit Target Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='When to trigger trail stop loss in ticks', type=input.integer)
+trailStop = input(defval=100, title='Trailing Stop in Ticks', type=input.integer)
+
+// dailyCrossoverCandles = input(defval=0, title='Candles Since DailyEMA Crossover', type=input.integer)
+hourlyCrossoverCandles = input(defval=0, title='Candles Since HourlyEMA Crossover', type=input.integer)
+dailyEMA = security(syminfo.tickerid, 'D', ema(close, input(defval=50, title='Daily EMA', type=input.integer)))
+hourlyEMA = ema(close, input(defval=50, title='Hourly EMA', type=input.integer))
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2018, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+plot(hourlyEMA, title='Hourly EMA', color=color.white)
+plot(dailyEMA, title="Daily EMA", color=color.yellow)
+
+// Conditions
+isOverDailyEMA = close > dailyEMA
+isUnderDailyEMA = close < dailyEMA
+crossedOverHourlyEMA = crossover(close[hourlyCrossoverCandles], hourlyEMA[hourlyCrossoverCandles]) and close > hourlyEMA
+crossedUnderHourlyEMA = crossunder(close[hourlyCrossoverCandles], hourlyEMA[hourlyCrossoverCandles]) and close < hourlyEMA
+
+longCondition = isOverDailyEMA and crossedOverHourlyEMA
+shortCondition = isUnderDailyEMA and crossedUnderHourlyEMA
+
+// Testing period
+// testPeriodStart = timestamp(2018,5,1,0,0)
+// testPeriodStop = timestamp(2019,5,30,0,0)
+
+// Entry
+if time >= timestamp(startYear,startMonth,1,0,0) and time <= timestamp(endYear,endMonth,1,0,0)
+    strategy.entry('long', strategy.long, when=longCondition)
+    strategy.entry('short', strategy.short, when=shortCondition)
+
+// Exit
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
+strategy.exit('exit', 'short', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)

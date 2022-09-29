@@ -1,0 +1,43 @@
+//@version=4
+// Rules:
+// 1. Above daily EMA
+// 2. Under fast hourly EMA
+// 3. Above slow hourly EMA
+strategy(title='Value Zone V1', overlay=true, default_qty_type=strategy.cash, default_qty_value=10000, currency='USD', linktoseries=true)
+
+// Inputs
+profitTarget = input(defval=500, title='Profit Target Ticks', type=input.integer)
+trailStopTrigger = input(defval=0, title='When to trigger trail stop loss in ticks', type=input.integer)
+trailStop = input(defval=100, title='Trailing Stop in Ticks', type=input.integer)
+
+// crossoverCandles = input(defval=0, title='Candles Since EMA Crossover', type=input.integer)
+dailyEMA = security(syminfo.tickerid, 'D', ema(close, input(defval=50, title='Daily EMA', type=input.integer)))
+fastEMA = ema(close, input(defval=20, title='Fast EMA', type=input.integer))
+slowEMA = ema(close, input(defval=50, title='Slow EMA', type=input.integer))
+
+startYear = input(defval=2018, title='Start year', type=input.integer)
+startMonth = input(defval=1, title='Start month', type=input.integer)
+endYear = input(defval=2018, title='End year', type=input.integer)
+endMonth = input(defval=12, title='End month', type=input.integer)
+
+plot(dailyEMA, title="Daily EMA", color=color.yellow)
+plot(fastEMA, title="Fast EMA", color=color.white)
+plot(slowEMA, title="Slow EMA", color=color.white)
+
+// Conditions
+aboveDailyEMA = close > dailyEMA
+belowDailyEMA = close < dailyEMA
+inLongValueZone = aboveDailyEMA and crossunder(close, fastEMA) and close > slowEMA
+inShortValueZone = belowDailyEMA and crossover(close, fastEMA) and close < slowEMA
+
+longCondition = inLongValueZone
+shortCondition = inShortValueZone
+
+// Entry
+if time >= timestamp(startYear,startMonth,1,0,0) and time <= timestamp(endYear,endMonth,28,0,0)
+    strategy.entry('long', strategy.long, when=longCondition)
+    strategy.entry('short', strategy.short, when=shortCondition)
+
+// Exit
+strategy.exit('exit', 'long', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
+strategy.exit('exit', 'short', profit=profitTarget, trail_points=trailStopTrigger, trail_offset=trailStop)
